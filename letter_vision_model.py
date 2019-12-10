@@ -41,17 +41,11 @@ class LetterVisionModel(nn.Module):
 
         self.layer_5 = nn.Linear(
             in_features = 7 * 7 * 8,
-            out_features = 200,
-            bias=True,
-        )
-
-        self.layer_6 = nn.Linear(
-            in_features = 200,
             out_features = 10,
             bias=True,
         )
 
-        self.softmax_6 = nn.Softmax(dim = 1)
+        self.softmax_5 = nn.Softmax(dim = 1)
 
 
     def forward(self, data):
@@ -60,7 +54,6 @@ class LetterVisionModel(nn.Module):
         res = F.leaky_relu(self.layer_3(res))
         res = self.layer_4(res)
         res = self.layer_flatten(res)
-        res = F.leaky_relu(self.layer_5(res))
-        res = self.softmax_6(self.layer_6(res))
+        res = self.softmax_5(self.layer_5(res))
         return res
     

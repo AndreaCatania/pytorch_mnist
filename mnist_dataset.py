@@ -69,3 +69,12 @@ class MnistTestDataset(torch.utils.data.Dataset):
         image = [float(p) / 255.0 for p in self.images[image_offset_from:image_offset_to]]
 
         return torch.tensor(image).view((1, 28, 28)), letter
+
+
+def correctly_predicted_count(predictions, targets):
+    count = 0
+    for p, t in zip(predictions, targets):
+        for id in range(10):
+            if p[id] >= 0.5 and t[id] >= 0.9:
+                count += 1
+    return count
