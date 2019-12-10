@@ -1,13 +1,11 @@
 import torch
 
-class MnistTrainDataset(torch.utils.data.Dataset):
-    def __init__(self, mnist_path):
-        super(MnistTrainDataset, self).__init__()
-
-        with open(mnist_path + "/train-images-idx3-ubyte", "rb") as f:
+class MnistDataReader():
+    def __init__(self, imgs_path, labels_path):
+        with open(imgs_path, "rb") as f:
             images_raw_data = f.read()
 
-        with open(mnist_path + "/train-labels-idx1-ubyte", "rb") as f:
+        with open(labels_path, "rb") as f:
             labels_raw_data = f.read()
 
         self.items_count = int.from_bytes(images_raw_data[4:8], "big")
@@ -16,20 +14,58 @@ class MnistTrainDataset(torch.utils.data.Dataset):
 
         self.images = images_raw_data[16:]
         self.labels = labels_raw_data[8:]
-    
-    def __len__(self):
+
+
+    """ Length of the dataset """
+    def len(self):
         return self.items_count
 
     
-    def __getitem__(self, image_id):
+    """ Returns an array of floats that contains a Mnist image """
+    def get_image(self, image_id):
+        image = self.get_byte_image(image_id)
+        return [float(p) / 255.0 for p in image]
+
+
+    """ Returns an array of bytes that contains a Mnist image """
+    def get_byte_image(self, image_id):
         image_offset_from = image_id * 28 * 28
         image_offset_to = image_offset_from + 28 * 28
 
-        letter = self.labels[image_id]
+        return self.images[image_offset_from:image_offset_to]
 
-        image = [float(p) / 255.0 for p in self.images[image_offset_from:image_offset_to]]
 
-        target = [1.0 if v == letter else 0.0 for v in range(10)]
+    """
+        Returns an array of 10 floats, with all values set to 0 except for the
+        value at position rapresented in the image pointed by `image_id` which is 1
+    """
+    def get_target(self, image_id):
+        number = self.get_number(image_id)
+        return [1.0 if v == number else 0.0 for v in range(10)]
+
+
+    """ Returns thr actual number rapresented in the image pointed by `image_id` """
+    def get_number(self, image_id):
+        return self.labels[image_id]
+
+
+class MnistTrainDataset(torch.utils.data.Dataset):
+    def __init__(self, mnist_path):
+        super(MnistTrainDataset, self).__init__()
+
+        self.reader = MnistDataReader(
+            mnist_path + "/train-images-idx3-ubyte",
+            mnist_path + "/train-labels-idx1-ubyte"
+        )
+
+    
+    def __len__(self):
+        return self.reader.len()
+
+    
+    def __getitem__(self, image_id):
+        image = self.reader.get_image(image_id)
+        target = self.reader.get_target(image_id)
 
         return torch.tensor(image).view((1, 28, 28)), torch.tensor(target)
         
@@ -42,33 +78,21 @@ class MnistTestDataset(torch.utils.data.Dataset):
     def __init__(self, mnist_path):
         super(MnistTestDataset, self).__init__()
 
-        with open(mnist_path + "/t10k-images-idx3-ubyte", "rb") as f:
-            images_raw_data = f.read()
+        self.reader = MnistDataReader(
+            mnist_path + "/t10k-images-idx3-ubyte",
+            mnist_path + "/t10k-labels-idx1-ubyte"
+        )
 
-        with open(mnist_path + "/t10k-labels-idx1-ubyte", "rb") as f:
-            labels_raw_data = f.read()
-
-        self.items_count = int.from_bytes(images_raw_data[4:8], "big")
-        self.height = int.from_bytes(images_raw_data[8:12], "big")
-        self.width = int.from_bytes(images_raw_data[12:16], "big")
-
-        self.images = images_raw_data[16:]
-        self.labels = labels_raw_data[8:]
-    
 
     def __len__(self):
-        return self.items_count
+        return self.reader.len()
 
     
     def __getitem__(self, image_id):
-        image_offset_from = image_id * 28 * 28
-        image_offset_to = image_offset_from + 28 * 28
+        image = self.reader.get_image(image_id)
+        number = self.reader.get_number(image_id)
 
-        letter = self.labels[image_id]
-
-        image = [float(p) / 255.0 for p in self.images[image_offset_from:image_offset_to]]
-
-        return torch.tensor(image).view((1, 28, 28)), letter
+        return torch.tensor(image).view((1, 28, 28)), number
 
 
 def correctly_predicted_count(predictions, targets):
