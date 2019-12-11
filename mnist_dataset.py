@@ -1,4 +1,35 @@
 import torch
+import os
+from PIL import Image
+
+
+class SparseMnistReader():
+    def __init__(self, path):
+        self.path = path
+
+        # Check integrity
+        i = 0
+        while True:
+            try:
+                with open(path + '/' + str(i) + '.png') as _:
+                    pass
+                with open(path + '/' + str(i) + '.json') as _:
+                    pass
+                i += 2
+            except FileNotFoundError:
+                break
+    
+        if i != len(os.listdir(path)):
+            exit("The directory is not integral, you can generate it using the `generate_dataset.py` script.")
+
+        self.size = i / 2
+
+
+    def size(self):
+        return self.size
+
+        
+
 
 class MnistDataReader():
     def __init__(self, imgs_path, labels_path):
