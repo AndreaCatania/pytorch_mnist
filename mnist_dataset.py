@@ -1,34 +1,104 @@
 import torch
 import os
+import json
 from PIL import Image
 
 
 class SparseMnistReader():
-    def __init__(self, path):
+    def __init__(self, path, check_integrity = False):
         self.path = path
 
-        # Check integrity
-        i = 0
-        while True:
-            try:
-                with open(path + '/' + str(i) + '.png') as _:
-                    pass
-                with open(path + '/' + str(i) + '.json') as _:
-                    pass
-                i += 2
-            except FileNotFoundError:
-                break
+        with open(path + '/meta.json') as f:
+            self.meta = json.load(f)
+
+        if check_integrity:
+            # Check integrity
+            count = 0
+            while True:
+                try:
+                    with open(path + '/' + str(count) + '.png') as _:
+                        pass
+                    with open(path + '/' + str(count) + '.json') as _:
+                        pass
+                    count += 1
+                except FileNotFoundError:
+                    break
     
-        if i != len(os.listdir(path)):
-            exit("The directory is not integral, you can generate it using the `generate_dataset.py` script.")
-
-        self.size = i / 2
+            if count != self.size():
+                exit("The directory is not integral, you can generate it using the `generate_dataset.py` script.")
 
 
+    """ Returns the length of the dataset """
     def size(self):
-        return self.size
+        return self.meta['size']
+
+
+    """ Returns the image width """
+    def image_width(self):
+        return self.meta['image_width']
+
+
+    """ Returns the image height """
+    def image_height(self):
+        return self.meta['image_height']
+
+    
+    """ Returns the raw byte array """
+    def get_byte_image(self, image_id):
+        if image_id >= self.size():
+            exit(str(image_id) + "out of index")
+        
+        return Image.open(self.path + '/' + str(image_id) + '.png').tobytes()
+        
+
+    """ Returns the Raw metadata array """
+    def get_image_meta(self, image_id):
+        if image_id >= self.size():
+            exit(str(image_id) + "out of index")
+        
+        with open(self.path + '/' + str(image_id) + '.json', 'r') as f:
+            data = json.load(f)
+        
+        return data
+    
+
+    """ Get an array of floats that rapresent the image """
+    def get_image(self, image_id):
+        image = self.get_byte_image(image_id)
+        return [float(p) / 255.0 for p in image]
+    
+
+    """ Get targets in Yolo format """
+    def get_targets(self, image_id):
+        meta = self.get_image_meta(image_id)
+        # TODO do we need convert this?
+        return meta
 
         
+
+class SparseMnistDataset(torch.utils.data.Dataset):
+    def __init__(self, path):
+        super(SparseMnistDataset, self).__init__()
+
+        self.reader = SparseMnistReader(
+            path
+        )
+    
+
+    def __len__(self):
+        return self.reader.size()
+    
+
+    def __getitem__(self, image_id):
+        image = self.reader.get_image(image_id)
+        targets = self.reader.get_targets(image_id)
+        return torch.tensor(image)\
+            .view((
+                1,
+                self.reader.image_width(),
+                self.reader.image_height()
+            )),\
+            torch.tensor(targets)
 
 
 class MnistDataReader():
@@ -52,18 +122,23 @@ class MnistDataReader():
         return self.items_count
 
     
-    """ Returns an array of floats that contains a Mnist image """
-    def get_image(self, image_id):
-        image = self.get_byte_image(image_id)
-        return [float(p) / 255.0 for p in image]
-
-
     """ Returns an array of bytes that contains a Mnist image """
     def get_byte_image(self, image_id):
         image_offset_from = image_id * 28 * 28
         image_offset_to = image_offset_from + 28 * 28
 
         return self.images[image_offset_from:image_offset_to]
+
+
+    """ Returns thr actual number rapresented in the image pointed by `image_id` """
+    def get_number(self, image_id):
+        return self.labels[image_id]
+
+
+    """ Returns an array of floats that contains a Mnist image """
+    def get_image(self, image_id):
+        image = self.get_byte_image(image_id)
+        return [float(p) / 255.0 for p in image]
 
 
     """
@@ -73,11 +148,6 @@ class MnistDataReader():
     def get_target(self, image_id):
         number = self.get_number(image_id)
         return [1.0 if v == number else 0.0 for v in range(10)]
-
-
-    """ Returns thr actual number rapresented in the image pointed by `image_id` """
-    def get_number(self, image_id):
-        return self.labels[image_id]
 
 
 class MnistTrainDataset(torch.utils.data.Dataset):

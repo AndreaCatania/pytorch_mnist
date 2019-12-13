@@ -90,6 +90,16 @@ class MnistAugmentPipeline():
             with open(path + '/' + name + '.json', 'w') as f:
                 json.dump(data, f)
 
+        meta = {
+            'image_meta_format': '[number, center_x, center_y, extent_x, extent_y]',
+            'size': amount,
+            'image_channels': 1,
+            'image_width': 84,
+            'image_height': 84,
+        }
+        with open(path + '/meta.json', 'w') as f:
+            json.dump(meta, f)
+
 
 parser = argparse.ArgumentParser(description="Generates a dataset of images 84x84 hand written digits, and a relative bounding box.")
 
