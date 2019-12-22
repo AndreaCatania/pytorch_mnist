@@ -7,6 +7,7 @@ from PIL import Image
 
 import mnist_dataset as md
 
+IMAGE_NUMBERS_COUNT = 4
 MNIST_SIZE = 28
 MNIST_HALF_SIZE = 28 / 2
 
@@ -38,7 +39,7 @@ class MnistAugmentPipeline():
 
         # Generate a non overlapping centers
         centers = []
-        for _desired_centers in range(random.randrange(2, 5)):
+        for _desired_centers in range(random.randrange(2, IMAGE_NUMBERS_COUNT+1)):
             for _ in range(self.try_count):
                 center = random.randint(inner_x, inner_w), random.randint(inner_y, inner_h)
                 overlap = False
@@ -86,7 +87,7 @@ class MnistAugmentPipeline():
             data = []
             for c, n in zip(centers, numbers):
                 data.append([n, c[0], c[1], MNIST_HALF_SIZE, MNIST_HALF_SIZE])
-
+            
             with open(path + '/' + name + '.json', 'w') as f:
                 json.dump(data, f)
 

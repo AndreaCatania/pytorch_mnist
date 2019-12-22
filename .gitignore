@@ -1,3 +1,5 @@
+resources/sparse_mnist/
+
 # Pytorch
 runs/
 

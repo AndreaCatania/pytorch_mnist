@@ -5,8 +5,9 @@ from PIL import Image
 
 
 class SparseMnistReader():
-    def __init__(self, path, check_integrity = False):
+    def __init__(self, path, yolo_data, check_integrity = False):
         self.path = path
+        self.yolo_data = yolo_data
 
         with open(path + '/meta.json') as f:
             self.meta = json.load(f)
@@ -68,20 +69,82 @@ class SparseMnistReader():
         return [float(p) / 255.0 for p in image]
     
 
-    """ Get targets in Yolo format """
+    """ Returns a quad_index where this center fall off """
+    def determine_quad(self, x, y):
+        # Takes the coords of the quads, offsets these by the half of
+        # the width and height so that the quads centers are at the middle
+        # Then just take the quad with the shortest distance from that point.
+        quads_coords = self.yolo_data[0]
+        quad_half_w = self.yolo_data[1] * 0.5
+        quad_half_h = self.yolo_data[2] * 0.5
+
+        dist = 1e4
+        quad_index = -1
+        for index, q in enumerate(quads_coords):
+            r_x = x - (q[0] + quad_half_w)
+            r_y = y - (q[1] + quad_half_h)
+            r_dist = r_x * r_x + r_y * r_y
+            if r_dist < dist:
+                dist = r_dist
+                quad_index = index
+
+        return quad_index
+
+
+    """ Get offset from quad """
+    def get_quad_offset(self, quad_index, x, y):
+        quads_coords = self.yolo_data[0]
+
+        quad_w = self.yolo_data[1]
+        quad_h = self.yolo_data[2]
+
+        r_x = x - quads_coords[quad_index][0]
+        r_y = y - quads_coords[quad_index][1]
+
+        return r_x / quad_w, r_y / quad_h
+
+
+    """ Get targets in Yolo format:
+        yolo_quds * [Confidence Any, Center X, Center Y, Box W, Box H, Confidence 0, Confidence 1, Confidence 2, Confidence 3, Confidence 4, Confidence 5, Confidence 6, Confidence 7, Confidence 8, Confidence 9]
+    """
     def get_targets(self, image_id):
         meta = self.get_image_meta(image_id)
-        # TODO do we need convert this?
-        return meta
 
+        targets = [None] * len(self.yolo_data[0])
+        for v, _ in zip(meta, range(len(self.yolo_data[0]))):
+            number = int(v[0])
+            classes = [1.0 if i==number else 0.0 for i in range(10)]
+
+            # Offset to the quad position
+            center_x = float(v[1])
+            center_y = float(v[2])
+            quad_index = self.determine_quad(center_x, center_y)
+            offset_x, offset_y = self.get_quad_offset(quad_index, center_x, center_y)
+
+            # Normalize to image size
+            box_w = float(v[3]) / self.image_width()
+            box_h = float(v[4]) / self.image_height()
+
+            has_object_confidence = 1.0
+            
+            # Add these to the target tensor
+            targets[quad_index] = [has_object_confidence, offset_x, offset_y, box_w, box_h]
+            targets[quad_index].extend(classes)
+        
+        # Set 0.0 to the void quads
+        for i in range(len(targets)):
+            if targets[i] == None:
+                targets[i] = [0.0] * 15
+
+        return [v for t in targets for v in t]
         
 
 class SparseMnistDataset(torch.utils.data.Dataset):
-    def __init__(self, path):
+    def __init__(self, path, yolo_quads):
         super(SparseMnistDataset, self).__init__()
 
         self.reader = SparseMnistReader(
-            path
+            path, yolo_quads
         )
     
 
